@@ -437,4 +437,57 @@ object Distribution {
     val ksStatistic = worstOffset.toDouble / n
     ksStatistic / math.sqrt(2.0 * n / (n * n))
   }
+
+  val DistributionMonad: Monad[Distribution] =
+    new Monad[Distribution] {
+      def bind[A, B](f: A => Distribution[B]) =
+        _ flatMap f
+
+     def pure[A] =
+       always(_)
+    }
+
+  val DistributionComonad: Comonad[Distribution] =
+    new Comonad[Distribution] {
+      def extend[A, B](f: Distribution[A] => B) =
+        a => always(f(a))
+
+     def extract[A] =
+       _.get
+    }
+}
+
+trait Functor[F[_]] {
+  def fmap[A, B](f: A => B): F[A] => F[B]
+}
+
+trait Apply[F[_]] extends Functor[F] {
+  def ap[A, B](f: F[A => B]): F[A] => F[B]
+}
+
+trait Bind[F[_]] extends Apply[F] {
+  def bind[A, B](f: A => F[B]): F[A] => F[B]
+
+  override def ap[A, B](f: F[A => B]) =
+    bind(a => fmap((ff: A => B) => ff(a))(f))
+}
+
+trait Applicative[F[_]] extends Apply[F] {
+  def pure[A]: A => F[A]
+
+  override def fmap[A, B](f: A => B) =
+   ap(pure(f))
+}
+
+trait Monad[F[_]] extends Bind[F] with Applicative[F]
+
+trait Extend[F[_]] extends Functor[F] {
+  def extend[A, B](f: F[A] => B): F[A] => F[B]
+}
+
+trait Comonad[F[_]] extends Extend[F] {
+  def extract[A]: F[A] => A
+
+  override def fmap[A, B](f: A => B) =
+    extend(a => f(extract(a)))
 }
